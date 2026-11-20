@@ -1,0 +1,24 @@
+﻿PASS hardware discovery; unsupported screens skipped = 1
+BASELINE AOC Q27N3G5R4 = 70% (0..100)
+PASS supported monitor has a slider
+PASS only controllable screens have sliders
+PASS startup preserves hardware brightness
+PASS tray icon created
+PASS tray left click collapses panel
+PASS tray left click opens panel after Explorer flyout dismissal
+PASS failed write displays actual hardware brightness
+LIMITATION monitor acknowledged write but did not apply it; UI correctly reports failure
+PASS refresh recovered supported monitor rows (cycle 1)
+PASS 100 rapid slider changes with release and concurrent refresh; UI remains responsive
+PASS refresh recovered supported monitor rows (cycle 2)
+PASS refresh recovered supported monitor rows (cycle 3)
+PASS refresh recovered supported monitor rows (cycle 4)
+PASS refresh recovered supported monitor rows (cycle 5)
+PASS refresh recovered supported monitor rows (cycle 6)
+PASS refresh recovers disabled slider
+PASS panel collapses after losing focus
+PASS hardware baseline unchanged after rejected writes
+PASS Exit menu removes tray icon
+PASS UI message loop exited cleanly
+UI PASS; HARDWARE WRITE NOT CONFIRMED
+RESTORED AOC Q27N3G5R4 = 70%

@@ -1,0 +1,9 @@
+node_modules/
+app/
+dist/
+dist-electron/
+release/
+test-results/
+*.log
+electron-*.zip
+audit.json

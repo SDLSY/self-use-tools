@@ -1,0 +1,105 @@
+{
+  "manifestVersion": 2,
+  "id": "gemini-quota-panel",
+  "name": "Gemini Quota",
+  "version": "0.1.0",
+  "description": "Gemini 官方风格的 CPA / Antigravity 剩余额度面板与状态栏。",
+  "icon": "assets/icon.png",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "gemini-quota",
+        "title": "Gemini Quota",
+        "icon": "gauge",
+        "entry": "panel/index.html",
+        "ui": "html"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "gemini-quota",
+        "text": "Gemini …",
+        "icon": "gauge",
+        "tone": "neutral",
+        "tooltip": "点击打开 Gemini Quota 面板 · CPA Antigravity 额度",
+        "command": "gemini-quota.open"
+      }
+    ],
+    "commands": [
+      {
+        "id": "gemini-quota.refresh",
+        "title": "Refresh Gemini Quota",
+        "when": "global"
+      },
+      {
+        "id": "gemini-quota.open",
+        "title": "Open Gemini Quota",
+        "when": "global"
+      }
+    ],
+    "settings": [
+      {
+        "key": "scriptPath",
+        "title": "额度脚本路径",
+        "description": "Get-CpaQuota.ps1 的绝对路径。",
+        "type": "string",
+        "default": "D:\\self_use_tools\\cpa-quota\\Get-CpaQuota.ps1"
+      },
+      {
+        "key": "sshHost",
+        "title": "SSH 主机别名",
+        "description": "脚本查询 CPA 额度使用的 SSH 主机别名。",
+        "type": "string",
+        "default": "tencent-vps"
+      },
+      {
+        "key": "sshDir",
+        "title": "SSH 可执行文件目录",
+        "description": "包含 ssh.exe 的目录。默认使用 Git 自带的 OpenSSH，避免 Windows OpenSSH 在插件 worker 中无法启动。",
+        "type": "string",
+        "default": "D:\\git\\Git\\usr\\bin"
+      },
+      {
+        "key": "refreshMinutes",
+        "title": "自动刷新间隔（分钟）",
+        "description": "状态栏和面板后台刷新额度的时间间隔。",
+        "type": "integer",
+        "default": 20,
+        "minimum": 1,
+        "maximum": 60
+      },
+      {
+        "key": "warnBelow",
+        "title": "低额度警告阈值（%）",
+        "description": "低于该值时状态栏变为警告色。",
+        "type": "number",
+        "default": 20,
+        "minimum": 0,
+        "maximum": 100
+      },
+      {
+        "key": "dangerBelow",
+        "title": "危险额度阈值（%）",
+        "description": "低于该值时状态栏变为危险色。",
+        "type": "number",
+        "default": 5,
+        "minimum": 0,
+        "maximum": 100
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    }
+  ]
+}

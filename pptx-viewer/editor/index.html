@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PPTX Viewer</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="toolbar">
+        <div class="toolbar-group">
+          <button id="btnSidebar" class="btn btn-icon active" title="显示/隐藏左侧缩略图">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <rect x="2" y="2.5" width="12" height="11" rx="1.6" />
+              <line x1="6" y1="2.5" x2="6" y2="13.5" />
+            </svg>
+          </button>
+          <span id="aspectBadge" class="badge">PPTX</span>
+          <span id="engineBadge" class="badge engine-loading"><span class="dot"></span>加载中…</span>
+        </div>
+
+        <div class="toolbar-group">
+          <button id="btnPrev" class="btn btn-icon" title="上一页 (←)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M10 3.5L5.5 8L10 12.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <span id="pageCounter" class="page-counter">—</span>
+          <button id="btnNext" class="btn btn-icon" title="下一页 (→)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M6 3.5L10.5 8L6 12.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+
+          <span class="divider"></span>
+
+          <button id="btnZoomOut" class="btn btn-icon" title="缩小 (Ctrl -)">−</button>
+          <button id="btnZoomFit" class="btn" title="适应窗口 (Ctrl 0)"><span id="zoomLabel">适应</span></button>
+          <button id="btnZoomIn" class="btn btn-icon" title="放大 (Ctrl +)">+</button>
+        </div>
+
+        <div class="toolbar-group">
+          <button id="btnViewMode" class="btn" title="在高清渲染与可复制文字视图之间切换">切换文字视图</button>
+          <button id="btnGrid" class="btn" title="网格总览 (G)">总览</button>
+          <button id="btnNotes" class="btn" title="演讲备注与文字提取 (N)">备注</button>
+          <button id="btnExport" class="btn" title="将当前页保存为图片">导出页</button>
+          <button id="btnPresent" class="btn" title="全屏演示 (F)">演示</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside id="sidebar" class="sidebar" aria-label="幻灯片缩略图"></aside>
+
+        <main class="main-col">
+          <div id="stageWrap" class="stage-wrap">
+            <div class="center-state">
+              <div class="title">正在打开演示文稿…</div>
+              <div>解析 PPTX 结构与渲染高清页面</div>
+            </div>
+          </div>
+          <div id="gridView" class="grid-view" style="display: none"></div>
+
+          <section id="notesDrawer" class="notes-drawer hidden">
+            <div class="notes-header">
+              <span id="notesTitle">演讲备注与提取文字</span>
+              <button id="btnCopyText" class="btn" style="height: 22px; font-size: 11px">复制文本</button>
+            </div>
+            <div id="notesBody" class="notes-body"></div>
+          </section>
+        </main>
+      </div>
+
+      <div class="present-hud">
+        <button id="hudPrev" title="上一页">◀</button>
+        <span id="hudCounter">1 / 1</span>
+        <button id="hudNext" title="下一页">▶</button>
+        <button id="hudExit" title="退出演示 (Esc)">退出</button>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

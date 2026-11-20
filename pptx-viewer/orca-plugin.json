@@ -1,0 +1,48 @@
+{
+  "manifestVersion": 2,
+  "id": "pptx-viewer",
+  "name": "PPTX Viewer",
+  "version": "0.1.0",
+  "description": "在 Orca 中高保真预览 .pptx / .ppt 幻灯片，支持高清渲染、缩略图胶片条、网格总览、缩放、全屏演示与文字提取。",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "customEditors": [
+      {
+        "id": "pptx-viewer",
+        "title": "PPTX Viewer",
+        "extensions": [
+          ".pptx",
+          ".ppt"
+        ],
+        "entry": "editor/index.html",
+        "priority": "default",
+        "contentKind": "bytes",
+        "frame": "isolated"
+      }
+    ],
+    "settings": [
+      {
+        "key": "renderDpi",
+        "title": "高清渲染分辨率 (DPI)",
+        "description": "使用 LibreOffice + Poppler 渲染幻灯片时的 DPI（150–240 推荐，数值越高越清晰）。",
+        "type": "integer",
+        "default": 180,
+        "minimum": 96,
+        "maximum": 300
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "settings:own"
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "manifestVersion": 2,
+  "id": "agent-cache-panel",
+  "name": "Agent Cache",
+  "version": "0.1.0",
+  "description": "实时监控当前工作区 Coding Agent（Claude Code / Codex / OpenCode / Pi / AGY）的 Prompt Cache 命中率与逐轮趋势。",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "agent-cache",
+        "title": "Agent Cache",
+        "icon": "zap",
+        "entry": "panel/index.html",
+        "ui": "html"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "agent-cache",
+        "text": "Cache …",
+        "icon": "zap",
+        "tone": "neutral",
+        "tooltip": "点击打开 Agent Cache 面板 · 实时查看当前 Coding Agent 缓存命中率",
+        "command": "agent-cache.open"
+      }
+    ],
+    "commands": [
+      {
+        "id": "agent-cache.refresh",
+        "title": "Refresh Agent Cache",
+        "when": "global"
+      },
+      {
+        "id": "agent-cache.open",
+        "title": "Open Agent Cache",
+        "when": "global"
+      }
+    ],
+    "events": [
+      { "on": "agent.status.changed" },
+      { "on": "workspace.changed" }
+    ],
+    "settings": [
+      {
+        "key": "statusBarMetric",
+        "title": "状态栏显示指标",
+        "description": "状态栏主数字显示会话累计、最近 5 轮还是最近 1 轮命中率。",
+        "type": "string",
+        "enum": [
+          "session",
+          "recent5",
+          "latest"
+        ],
+        "default": "session"
+      },
+      {
+        "key": "refreshSeconds",
+        "title": "自动轮询间隔（秒）",
+        "description": "后台检测当前聚焦窗口与增量读取会话日志的间隔，支持 2–60 秒。",
+        "type": "integer",
+        "default": 3,
+        "minimum": 2,
+        "maximum": 60
+      },
+      {
+        "key": "goodAbove",
+        "title": "健康命中率阈值（%）",
+        "description": "达到或高于该值时显示健康绿色。",
+        "type": "number",
+        "default": 85,
+        "minimum": 0,
+        "maximum": 100
+      },
+      {
+        "key": "warnBelow",
+        "title": "告警命中率阈值（%）",
+        "description": "低于该值时显示告警红色，介于两者之间显示黄色。",
+        "type": "number",
+        "default": 65,
+        "minimum": 0,
+        "maximum": 100
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "agent:read"
+    }
+  ]
+}

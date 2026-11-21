@@ -38,6 +38,8 @@ type RunResult = {
   code: number
 }
 
+type GroupKind = 'gemini' | 'argon' | 'third-party' | 'other'
+
 type PoolStats = {
   geminiAvg: number | null
   gemini5hAvg: number | null
@@ -47,6 +49,10 @@ type PoolStats = {
   geminiLowest: number | null
   geminiEligibleCount: number
   geminiExcludedCount: number
+  argonAvg: number | null
+  argonWeeklyAvg: number | null
+  argonLowest: number | null
+  argonAccountCount: number
   thirdPartyAvg: number | null
   thirdParty5hAvg: number | null
   thirdPartyWeeklyAvg: number | null
@@ -458,9 +464,18 @@ function avgVal(values: number[]): number | null {
   return sum / values.length
 }
 
-function isGeminiModelId(id: string): boolean {
-  const lower = id.toLowerCase()
-  return lower.includes('gemini')
+function isArgonModelId(id: string): boolean {
+  const lower = String(id || '').trim().toLowerCase()
+  return lower.startsWith('gemini-4-argon') && !lower.includes('disabled')
+}
+
+function isMainGeminiModelId(id: string): boolean {
+  const lower = String(id || '').trim().toLowerCase()
+  if (!lower.includes('gemini')) return false
+  if (lower.includes('disabled')) return false
+  // gemini-4-argon-* has an independent quota bucket on Pro plans
+  if (lower.startsWith('gemini-4-argon')) return false
+  return true
 }
 
 function isGemini4CoreModelId(id: string): boolean {
@@ -469,6 +484,8 @@ function isGemini4CoreModelId(id: string): boolean {
   if (lower.includes('disabled')) return false
   // gemini-4-hydrogen-sonar remains enabled on accounts where core Gemini-4 models are disabled
   if (lower.includes('sonar')) return false
+  // gemini-4-argon-* uses its own quota bucket on Pro plans, separate from the main Neon/Hydrogen pool
+  if (lower.startsWith('gemini-4-argon')) return false
   return true
 }
 
@@ -486,14 +503,90 @@ function supportsGemini4(account: QuotaAccount | null | undefined): boolean {
 }
 
 function isThirdPartyModelId(id: string): boolean {
-  const lower = id.toLowerCase()
+  const lower = String(id || '').trim().toLowerCase()
   return lower.startsWith('claude') || lower.startsWith('gpt') || lower.startsWith('openai')
+}
+
+function classifyGroup(group: QuotaGroup | null | undefined): GroupKind {
+  if (!group) return 'other'
+  const name = String(group.displayName || '').toLowerCase()
+  const buckets = Array.isArray(group.buckets) ? group.buckets : []
+  const hasArgonBucket = buckets.some((b) =>
+    /argon/i.test(`${b?.bucketId || ''} ${b?.displayName || ''}`)
+  )
+  // Match Argon before generic Gemini because "Gemini 4 Argon" contains "gemini"
+  if (name.includes('argon') || hasArgonBucket) return 'argon'
+
+  const hasGeminiBucket = buckets.some((b) => /^gemini[-_]/i.test(String(b?.bucketId || '')))
+  if (name.includes('gemini') || hasGeminiBucket) return 'gemini'
+
+  const hasThirdPartyBucket = buckets.some((b) => /^3p[-_]/i.test(String(b?.bucketId || '')))
+  if (
+    name.includes('claude') ||
+    name.includes('gpt') ||
+    name.includes('third') ||
+    hasThirdPartyBucket
+  ) {
+    return 'third-party'
+  }
+  return 'other'
+}
+
+function shouldFallbackArgonFromModels(account: QuotaAccount): boolean {
+  const models = Array.isArray(account.models) ? account.models : []
+  const argonModels = models.filter(
+    (m) => m && isArgonModelId(m.model || m.modelId || '') && clampFraction(m.remainingFraction) != null
+  )
+  if (argonModels.length === 0) return false
+
+  const groups = Array.isArray(account.quotaGroups) ? account.quotaGroups : []
+  if (groups.length === 0) return true
+  if (groups.some((g) => classifyGroup(g) === 'argon')) return false
+
+  const geminiGroup = groups.find((g) => classifyGroup(g) === 'gemini')
+  const desc = String(geminiGroup?.description || '').toLowerCase()
+  if (desc.includes('argon')) return false
+  // Legacy desktop-UA snapshots omit the Argon group and only list "Gemini 3.8 Flash" in Gemini Models
+  if (!desc.includes('gemini 4')) return true
+
+  // Otherwise only synthesize if Argon per-model quota clearly diverges from main Gemini models
+  const mainGeminiModels = models.filter(
+    (m) =>
+      m &&
+      isMainGeminiModelId(m.model || m.modelId || '') &&
+      clampFraction(m.remainingFraction) != null
+  )
+  if (mainGeminiModels.length === 0) return true
+
+  let argonMin: number | null = null
+  let argonReset: number | null = null
+  for (const m of argonModels) {
+    const f = clampFraction(m.remainingFraction)
+    if (f != null) argonMin = minVal(argonMin, f)
+    const ms = m.resetTime ? Date.parse(m.resetTime) : NaN
+    if (Number.isFinite(ms)) argonReset = minVal(argonReset, ms)
+  }
+
+  let mainMin: number | null = null
+  let mainReset: number | null = null
+  for (const m of mainGeminiModels) {
+    const f = clampFraction(m.remainingFraction)
+    if (f != null) mainMin = minVal(mainMin, f)
+    const ms = m.resetTime ? Date.parse(m.resetTime) : NaN
+    if (Number.isFinite(ms)) mainReset = minVal(mainReset, ms)
+  }
+
+  if (argonMin != null && mainMin != null && Math.abs(argonMin - mainMin) > 0.01) return true
+  if (argonReset != null && mainReset != null && Math.abs(argonReset - mainReset) > 120_000) return true
+  return false
 }
 
 function computePoolStats(snapshot: QuotaSnapshot): PoolStats {
   const geminiAccountValues: number[] = []
   const gemini5hValues: number[] = []
   const geminiWeeklyValues: number[] = []
+  const argonAccountValues: number[] = []
+  const argonWeeklyValues: number[] = []
   const thirdPartyAccountValues: number[] = []
   const thirdParty5hValues: number[] = []
   const thirdPartyWeeklyValues: number[] = []
@@ -502,6 +595,7 @@ function computePoolStats(snapshot: QuotaSnapshot): PoolStats {
   let geminiWeeklyLowest: number | null = null
   let geminiEligibleCount = 0
   let geminiExcludedCount = 0
+  let argonLowest: number | null = null
 
   for (const account of snapshot.accounts || []) {
     if (!account || account.status !== 'ok') continue
@@ -513,25 +607,31 @@ function computePoolStats(snapshot: QuotaSnapshot): PoolStats {
     let acctGemini: number | null = null
     let acctGemini5h: number | null = null
     let acctGeminiWeekly: number | null = null
+    let acctArgon: number | null = null
+    let acctArgonWeekly: number | null = null
     let acctThirdParty: number | null = null
     let acctThirdParty5h: number | null = null
     let acctThirdPartyWeekly: number | null = null
 
     for (const group of account.quotaGroups || []) {
       if (!group) continue
-      const isGemini = /gemini/i.test(group.displayName || '')
+      const kind = classifyGroup(group)
+      if (kind === 'other') continue
       for (const bucket of group.buckets || []) {
         if (!bucket) continue
         const fraction = clampFraction(bucket.remainingFraction)
         if (fraction == null) continue
         const pct = fraction * 100
         const win = bucketWindow(bucket)
-        if (isGemini) {
+        if (kind === 'gemini') {
           if (!g4Capable) continue
           acctGemini = minVal(acctGemini, pct)
           if (win === '5h') acctGemini5h = minVal(acctGemini5h, pct)
           else if (win === 'weekly') acctGeminiWeekly = minVal(acctGeminiWeekly, pct)
-        } else {
+        } else if (kind === 'argon') {
+          acctArgon = minVal(acctArgon, pct)
+          if (win === 'weekly' || win === 'other') acctArgonWeekly = minVal(acctArgonWeekly, pct)
+        } else if (kind === 'third-party') {
           acctThirdParty = minVal(acctThirdParty, pct)
           if (win === '5h') acctThirdParty5h = minVal(acctThirdParty5h, pct)
           else if (win === 'weekly') acctThirdPartyWeekly = minVal(acctThirdPartyWeekly, pct)
@@ -539,10 +639,11 @@ function computePoolStats(snapshot: QuotaSnapshot): PoolStats {
       }
     }
 
-    // Fallback to per-model fractions if summary groups are unavailable for this account
+    // Fallback to per-model fractions if summary groups are unavailable or omit Argon
     const needGeminiFallback = g4Capable && acctGemini == null
+    const needArgonFallback = acctArgon == null && shouldFallbackArgonFromModels(account)
     const needThirdPartyFallback = acctThirdParty == null
-    if (needGeminiFallback || needThirdPartyFallback) {
+    if (needGeminiFallback || needArgonFallback || needThirdPartyFallback) {
       for (const model of account.models || []) {
         if (!model) continue
         const id = model.model || model.modelId || ''
@@ -550,7 +651,10 @@ function computePoolStats(snapshot: QuotaSnapshot): PoolStats {
         const fraction = clampFraction(model.remainingFraction)
         if (fraction == null) continue
         const pct = fraction * 100
-        if (needGeminiFallback && isGeminiModelId(id)) {
+        if (needArgonFallback && isArgonModelId(id)) {
+          acctArgon = minVal(acctArgon, pct)
+          acctArgonWeekly = minVal(acctArgonWeekly, pct)
+        } else if (needGeminiFallback && isMainGeminiModelId(id)) {
           acctGemini = minVal(acctGemini, pct)
         } else if (needThirdPartyFallback && isThirdPartyModelId(id)) {
           acctThirdParty = minVal(acctThirdParty, pct)
@@ -572,6 +676,13 @@ function computePoolStats(snapshot: QuotaSnapshot): PoolStats {
         geminiWeeklyLowest = minVal(geminiWeeklyLowest, acctGeminiWeekly)
       }
     }
+    if (acctArgon != null) {
+      argonAccountValues.push(acctArgon)
+      argonLowest = minVal(argonLowest, acctArgon)
+    }
+    if (acctArgonWeekly != null) {
+      argonWeeklyValues.push(acctArgonWeekly)
+    }
     if (acctThirdParty != null) thirdPartyAccountValues.push(acctThirdParty)
     if (acctThirdParty5h != null) thirdParty5hValues.push(acctThirdParty5h)
     if (acctThirdPartyWeekly != null) thirdPartyWeeklyValues.push(acctThirdPartyWeekly)
@@ -586,6 +697,10 @@ function computePoolStats(snapshot: QuotaSnapshot): PoolStats {
     geminiLowest,
     geminiEligibleCount,
     geminiExcludedCount,
+    argonAvg: avgVal(argonAccountValues),
+    argonWeeklyAvg: avgVal(argonWeeklyValues),
+    argonLowest,
+    argonAccountCount: argonAccountValues.length,
     thirdPartyAvg: avgVal(thirdPartyAccountValues),
     thirdParty5hAvg: avgVal(thirdParty5hValues),
     thirdPartyWeeklyAvg: avgVal(thirdPartyWeeklyValues)
@@ -601,9 +716,13 @@ function statusTone(
   if (snapshot.stale) return 'warning'
   if ((snapshot.summary?.failed ?? 0) > 0) return 'warning'
   if ((snapshot.summary?.ok ?? 0) === 0) return 'danger'
-  if (stats.geminiEligibleCount === 0) return 'warning'
+  if (stats.geminiEligibleCount === 0 && stats.argonAccountCount === 0) return 'warning'
 
-  const bottleneck = minVal(stats.gemini5hAvg, stats.geminiWeeklyAvg) ?? stats.geminiAvg
+  const bottleneck =
+    minVal(stats.gemini5hAvg, stats.geminiWeeklyAvg) ??
+    stats.geminiAvg ??
+    stats.argonWeeklyAvg ??
+    stats.argonAvg
   if (typeof bottleneck !== 'number' || !Number.isFinite(bottleneck)) return 'warning'
   if (bottleneck < settings.dangerBelow) return 'danger'
   if (bottleneck < settings.warnBelow) return 'warning'
@@ -618,19 +737,23 @@ async function updateStatusBar(
   try {
     const stats = computePoolStats(snapshot)
     const avg = stats.geminiAvg
+    const argonVal = stats.argonWeeklyAvg ?? stats.argonAvg
     const updated = snapshot.collectedAtLocal
       ? snapshot.collectedAtLocal.slice(11, 16) || snapshot.collectedAtLocal
       : formatTime(snapshot.fetchedAt || Date.now())
 
+    const argonSuffix = argonVal != null ? ` · Argon ${formatPercent(argonVal)}` : ''
     let text: string
     if (stats.gemini5hAvg != null && stats.geminiWeeklyAvg != null) {
-      text = `Gemini 5h ${formatPercent(stats.gemini5hAvg)} · 周 ${formatPercent(stats.geminiWeeklyAvg)}`
+      text = `Gemini 5h ${formatPercent(stats.gemini5hAvg)} · 周 ${formatPercent(stats.geminiWeeklyAvg)}${argonSuffix}`
     } else if (stats.gemini5hAvg != null) {
-      text = `Gemini 5h ${formatPercent(stats.gemini5hAvg)}`
+      text = `Gemini 5h ${formatPercent(stats.gemini5hAvg)}${argonSuffix}`
     } else if (stats.geminiWeeklyAvg != null) {
-      text = `Gemini 周 ${formatPercent(stats.geminiWeeklyAvg)}`
+      text = `Gemini 周 ${formatPercent(stats.geminiWeeklyAvg)}${argonSuffix}`
     } else if (typeof avg === 'number' && Number.isFinite(avg)) {
-      text = `Gemini ${formatPercent(avg)}`
+      text = `Gemini ${formatPercent(avg)}${argonSuffix}`
+    } else if (argonVal != null) {
+      text = `Argon ${formatPercent(argonVal)}`
     } else if ((snapshot.summary?.ok ?? 0) > 0 && stats.geminiEligibleCount === 0) {
       text = 'Gemini 无G4'
     } else {
@@ -658,7 +781,14 @@ async function updateStatusBar(
     } else if (avg != null) {
       parts.push(`Gemini 4 平均 ${formatPercent(avg)}`)
     } else if ((snapshot.summary?.ok ?? 0) > 0 && stats.geminiEligibleCount === 0) {
-      parts.push('暂无支持 Gemini 4 的可用账号')
+      parts.push('暂无支持 Gemini 4 主池的可用账号')
+    }
+    if (argonVal != null) {
+      const lowA =
+        stats.argonLowest != null && stats.argonAccountCount > 1
+          ? `(最低 ${formatPercent(stats.argonLowest)})`
+          : ''
+      parts.push(`Argon 周 ${formatPercent(argonVal)}${lowA}`)
     }
     if (stats.thirdPartyAvg != null) {
       parts.push(`Claude/GPT 平均 ${formatPercent(stats.thirdPartyAvg)}`)
@@ -869,12 +999,14 @@ export default function activate(orca: OrcaWorkerApi): void {
     const stats = computePoolStats(snapshot)
     const excludedNote =
       stats.geminiExcludedCount > 0 ? `，已排除 ${stats.geminiExcludedCount} 个无 G4` : ''
+    const argonVal = stats.argonWeeklyAvg ?? stats.argonAvg
+    const argonNote = argonVal != null ? ` · Argon 周平均 ${formatPercent(argonVal)}` : ''
     if (stats.gemini5hAvg != null || stats.geminiWeeklyAvg != null) {
       return `Gemini 4 额度：5h 平均 ${formatPercent(stats.gemini5hAvg)} · 周平均 ${formatPercent(
         stats.geminiWeeklyAvg
-      )}（${stats.geminiEligibleCount} 个支持 G4 账号${excludedNote}）`
+      )}${argonNote}（${stats.geminiEligibleCount} 个支持 G4 账号${excludedNote}）`
     }
-    return `Gemini 4 额度：平均剩余 ${formatPercent(stats.geminiAvg)}（${stats.geminiEligibleCount}/${snapshot.summary.accounts} 个支持 G4 账号${excludedNote}）`
+    return `Gemini 4 额度：平均剩余 ${formatPercent(stats.geminiAvg)}${argonNote}（${stats.geminiEligibleCount}/${snapshot.summary.accounts} 个支持 G4 账号${excludedNote}）`
   })
 
   orca.commands.register('gemini-quota.open', async () => {

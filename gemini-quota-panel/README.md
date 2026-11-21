@@ -2,9 +2,9 @@
 
 在 Orca 中查看 CPA（CLIProxyAPI）反代的 Antigravity / Gemini Pro 账号剩余额度。
 
-- **右侧栏面板**：`panel/index.html`，展示多账号共享池概览（`Gemini 共享池` / `Claude / GPT 池`）、带状态点与剩余百分比的账号筛选 chips、账号模型能力标签（`Neon` / `Hydrogen` / `Argon` / `3.8 Flash` / `Claude 5.5`）、Antigravity 官方两桶额度（`Weekly limit` 与 `5h limit`，均带实时倒计时与悬停本地时间），以及默认折叠的逐模型明细抽屉。
+- **右侧栏面板**：`panel/index.html`，展示多账号共享池概览（`Gemini 4 额度池` / `Gemini 4 Argon` 独立周桶 / `Claude · GPT 池`）、带状态点与剩余百分比的账号筛选 chips、账号模型能力标签（`Neon` / `Hydrogen` / `Argon` / `3.8 Flash` / `Claude 5.5`）、Antigravity 官方分桶额度（主池 `5h` + `每周`、Pro 账号独立 `Gemini 4 Argon` 每周桶与 `Claude · GPT` 双桶，均带实时倒计时与悬停本地时间），以及默认折叠的逐模型明细抽屉（按主池 / Argon 独立周桶 / Claude·GPT 分区展示）。
 - **跳过 / 过期账号**：以柔和卡片展示本地化过期时间与原因，不误报为故障，也不影响其它可用账号。
-- **状态栏**：`Gemini 95.2%`（仅统计可用账号的 Gemini 模型平均剩余额度），按 `warnBelow` / `dangerBelow` 自动变色，悬停显示 Gemini 5h / 周平均与 Claude·GPT 摘要及可用账号数，点击直接打开面板，后台定时刷新。
+- **状态栏**：`Gemini 5h XX% · 周 YY% · Argon ZZ%`（主池仅统计支持 Gemini 4 主模型的可用账号，Argon 独立周桶单独并列展示、不与主池混算），按 `warnBelow` / `dangerBelow` 自动变色，悬停显示 Gemini 4 主池 5h / 周平均、Argon 独立周桶平均与 Claude·GPT 摘要及可用账号数，点击直接打开面板，后台定时刷新。
 - **数据源**：复用 `../cpa-quota/Get-CpaQuota.ps1 -Json`，通过 SSH 在 `tencent-vps` 上只读查询 Antigravity 的 `retrieveUserQuotaSummary` 与 `retrieveUserQuota`；token 仅留在远端，不落盘、不回传。
 
 ## 结构

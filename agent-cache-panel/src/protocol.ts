@@ -60,7 +60,7 @@ export type CacheSnapshot = {
 
 declare module 'orca' {
   interface PluginRequests {
-    'cache.get': { input?: { force?: boolean }; output: CacheSnapshot }
+    'cache.get': { input: { force?: boolean } | undefined; output: CacheSnapshot }
     'cache.refresh': { output: CacheSnapshot }
     'cache.openPanel': { output: { opened: boolean } }
   }

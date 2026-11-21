@@ -84,7 +84,7 @@ export type QuotaSnapshot = {
 declare module 'orca' {
   interface PluginRequests {
     /** Cached snapshot, refreshed in the background when older than a minute. */
-    'quota.get': { input?: { force?: boolean }; output: QuotaSnapshot }
+    'quota.get': { input: { force?: boolean } | undefined; output: QuotaSnapshot }
     /** Force a live query and answer with the new snapshot. */
     'quota.refresh': { output: QuotaSnapshot }
     /** Open this plugin's panel in Orca's sidebar. */

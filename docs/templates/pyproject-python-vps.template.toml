@@ -1,0 +1,44 @@
+# 复制到 Python / VPS 项目根目录作为 pyproject.toml（或合并到已有配置）
+# 日常命令：
+#   uvx ruff check .
+#   uvx ruff format --check .
+#   uv run pytest
+
+[project]
+name = "my-vps-tool"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.9",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [".git", ".venv", ".secrets", "__pycache__", "build", "dist"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle | F: pyflakes | I: isort | B: bugbear | UP: pyupgrade
+# SIM: simplify | C90: 圈复杂度 | BLE: 禁止裸吞异常 | S: 基础安全检查(排除测试)
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C90", "BLE"]
+ignore = [
+  "E501", # 行宽由 ruff format 兜底，长 URL/文案不强制折断
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["BLE001"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"

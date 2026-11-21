@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+set -eu
+
+# 1. Privacy & secret path guard (defense-in-depth on top of .gitignore)
+staged=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR)
+if [ -n "$staged" ]; then
+  blocked=$(printf '%s\n' "$staged" | grep -E '(^|/)\.secrets/|(^|/)VPS资源/|(^|/)cpa-quota/|(^|/)chrome-profile/|(^|/)antigravity-data|(^|/)\.env($|\.)|\.(pem|key|p12|pfx)$' || true)
+  if [ -n "$blocked" ]; then
+    printf 'ERROR: Blocked commit containing sensitive/private path(s):\n%s\n' "$blocked" >&2
+    exit 1
+  fi
+fi
+
+# 2. Max-lines ratchet check on changed/staged source files
+if command -v node >/dev/null 2>&1 && [ -f "scripts/check-max-lines-ratchet.mjs" ]; then
+  node scripts/check-max-lines-ratchet.mjs --changed
+fi
